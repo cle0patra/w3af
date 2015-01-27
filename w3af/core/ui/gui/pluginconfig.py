@@ -321,6 +321,7 @@ class PluginTree(gtk.TreeView):
             self.mainwin.profiles.profile_changed(plugin)
         else:
             row[0] = "<b>%s</b>" % row[3]
+            
 
         # update the general config status, and check if the plugin
         # type has any leaf in changed state
@@ -400,6 +401,7 @@ class PluginTree(gtk.TreeView):
         I get here when the user right clicks on a plugin name, then he clicks on "Reload plugin"
         This method calls the plugin editor with the corresponding parameters.
         """
+        print "_handleReload -> PName: ",plugin_name," PType: ",plugin_type, " Path: ",path
         self._finishedEditingPlugin(path, plugin_type, plugin_name)
 
     def _handleEditPluginEvent(self, widget, plugin_name, plugin_type, path):
@@ -422,6 +424,7 @@ class PluginTree(gtk.TreeView):
         try:
             self.w3af.plugins.reload_modified_plugin(plugin_type, plugin_name)
         except Exception, e:
+            print e
             msg = 'The plugin you modified raised the following exception'
             msg += ' while trying to reload it: "%s",' % str(e)
             msg += ' please fix this issue before continuing or w3af will crash.'
@@ -491,7 +494,16 @@ class PluginTree(gtk.TreeView):
         newvalue = not treerow[1]
         treerow[1] = newvalue
         treerow[2] = False
-
+        #Enhanced authentication plugin. Could be more elegant...
+        
+        if path == "1:1":
+            tPath = (1,1)
+            p = self._get_plugin_inst(path)
+            plugin_name = self.treestore[path][3]
+            plugin_type = self.treestore[path[:1]][3]
+            self._finishedEditingPlugin(tPath, plugin_type, plugin_name)
+            
+            
         # path can be "?" if it's a father or "?:?" if it's a child
         if ":" not in path:
             # father, lets check if it's the crawl/evasion plugin type

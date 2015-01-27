@@ -1,5 +1,5 @@
 """
-detailed.py
+enhanced.py
 
 Copyright 2011 Andres Riancho
 
@@ -19,8 +19,9 @@ along with w3af; if not, write to the Free Software
 Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 """
-import httplib2
-from BeautifulSoup import BeautifulSoup, SoupStrainer
+from splinter import Browser
+from bs4 import BeautifulSoup
+import urllib2
 
 import w3af.core.controllers.output_manager as om
 
@@ -31,58 +32,71 @@ from w3af.core.data.options.opt_factory import opt_factory
 from w3af.core.data.options.option_list import OptionList
 
 
+auth_url = 'https://example.com/login'
 class enhanced(AuthPlugin):
-    """Detailed authentication plugin."""
+    """Enhanced authentication plugin."""
+    
     def __init__(self):
         AuthPlugin.__init__(self)
-
-        self.username = ''
-        self.password = ''
-        self.username_field = ''
-        self.password_field = ''
-        self.method = 'POST'
-        self.data_format = '%u=%U&%p=%P'
-        self.auth_url = 'http://host.tld/'
+        self.extras = [] # In (name,value,type) format. Actually holds all parameters (username, password included)
+        self.data_format = ""
         self.check_url = 'http://host.tld/'
         self.check_string = ''
-        self._login_error = True
-	self.extras = [] # additional values provided by the server
-	self.extras_formats = []
-  
-    def get_extras(self):
-	"""
-	Get extra parameters on login page. IMPORTANT: We assume there is only one form on the page.
-	"""
-	h = httplib2.Http('.cache')
-	response, content = h.request(self.auth_url)
-	count  = 0
-	format_key_name = 'a'
-	format_key_value = 'A'
-	try:
-		for field in BeautifulSoup(content, parseOnlyThese=SoupStrainer('input')):
-			if field['name'] == 'password' or field['name'] == 'username':
-				pass
-			elif field.has_key('name'):
-				self.extras.append({field['name']: field['value']})
-				self.data_format = self.data_format + '&%%%c=%%%c' % (format_key_name,format_key_value)
-				om.out.information("For field: %s, value = %s. New data format: %s" % \
-					(self.extras[count]['name'], self.extras[count]['value'], self.data_format))
-				format_key_name, format_key_value = self.increment_format(format_key_name, format_key_value)
-				self.extras_formats.append({format_key_name: format_key_value})
-				count += 1
-	except KeyError,k:
-		pass
-	except Exception:
-		pass
-    def increment_format(self,format_key_name,format_key_value):
-	"""
-	Return the placeholders as a tuple
-	"""
-	format_key_name = chr(ord(format_key_name) + 1)
-	format_key_value = format_key_name.upper()
-	if format_key_name == 'u' or format_key_name == 'p': # illegal format values
-		return increment_format(format_key_name, format_key_value) # recurse
-	return format_key_name, format_key_value 
+        
+        self.method = "POST"
+        self.options = []
+    def _run_auth_sequence(self):
+        """
+        Grab form values from auth URL
+        """
+        print "run auth sequence."
+        """ br = Browser('firefox')
+        br.visit(auth_url)"""
+        global auth_url
+        try:
+            request = urllib2.Request(auth_url)
+            response = None
+            try:
+                response = urllib2.urlopen(request)
+                html = response.read()
+                html_proc = BeautifulSoup(html)
+                
+                ck_value = lambda d, key: d.get(key) if d.get(key) != None else ''
+                self.extras = [(element['name'], ck_value(element,"value"), ck_value(element,"type")) for element in html_proc.find_all('input')]
+                self._update_data_format()
+                print self.extras
+            except urllib2.HTTPError as e:
+                print e
+                om.out.debug("Error fetching login URL: %s" % e)
+            except urllib2.URLError as u:
+                print u
+                om.out.debug("URL Error: ",u)
+            except Exception as ex:
+                print ex
+                om.out.debug("Unknown Error: ",ex)
+        except (RuntimeError, ), e:
+            raise e
+    def _update_data_format(self):
+        """
+        Update the self.data_format options to reflect form values.
+        """
+        format_name = 'a'
+        format_value = 'A'
+        for i in range(0,len(self.extras)-1):
+            #Add a format placeholder for each extra parameter. Add '&' if not last parameter
+            self.data_format += "%%%s=%%%s%s" %  (format_name,format_value,'&' if i<len(self.extras)-2 else '',)
+            #get next letter for next extra parameter
+            format_name = chr(ord(format_name)+1)
+            format_value = chr(ord(format_value)+1)
+        # Update the data_format value in options by swapping
+        self.get_options()
+        new_format_option = list(self.options[1])
+        new_format_option[1] = self.data_format
+        new_format_option = tuple(new_format_option)
+        self.options[1] = new_format_option
+        
+        print "Data format: ",self.data_format," Updated tuple: ",new_format_option," Options tuple: ",self.options[1]
+            
     def login(self):
         """
         Login to the application.
@@ -96,7 +110,7 @@ class enhanced(AuthPlugin):
 
         try:
             functor = getattr(self._uri_opener, self.method)
-            functor(self.auth_url, data)
+            functor(auth_url, data)
 
             if not self.is_logged():
                 raise Exception("Can't login into web application as %s/%s"
@@ -119,17 +133,15 @@ class enhanced(AuthPlugin):
         web application.
         """
         result = self.data_format
-        result = result.replace('%u', self.username_field)
-        result = result.replace('%U', self.username)
-        result = result.replace('%p', self.password_field)
-        result = result.replace('%P', self.password)
-
-	extra_count = 0
-	for extra_name,extra_value in self.extras_formats:
-		result = result.replace('%s' % extra_name, self.extras[extra_count]['name'])
-		result = result.replace('%s' % extra_value, self.extras[extra_count]['value'])
-		extra_coutn += 1
-	om.out.information(result)
+        
+        
+        format_name = 'a'
+        format_value = 'A'
+        for extra in self.extras:
+            result.replace("%%%s" % format_name, extra[0])
+            result.replace("%%%s" % format_value, extra[1])
+            format_name = chr(ord(format_name)+1)
+            format_value = chr(ord(format_value)+1)
         return result
 
     def logout(self):
@@ -138,6 +150,7 @@ class enhanced(AuthPlugin):
 
     def is_logged(self):
         """Check user session."""
+        
         try:
             body = self._uri_opener.GET(self.check_url, grep=False).body
             logged_in = self.check_string in body
@@ -150,48 +163,34 @@ class enhanced(AuthPlugin):
             return logged_in
         except Exception:
             return False
-
+        
+        return False
     def get_options(self):
         """
         :return: A list of option objects for this plugin.
         """
-        options = [
-            ('username', self.username, 'string',
-             'Username for using in the authentication process'),
-            ('password', self.password, 'string',
-             'Password for using in the authentication process'),
-            ('username_field', self.username_field,
-             'string', 'Username parameter name (ie. "uname" if the HTML looks'
-                       ' like <input type="text" name="uname">...)'),
-            ('password_field', self.password_field,
-             'string', 'Password parameter name (ie. "pwd" if the HTML looks'
-                       ' like <input type="password" name="pwd">...)'),
-            ('auth_url', self.auth_url, 'url',
-             'URL where the username and password will be sent using the'
-             ' configured request method'),
+        global auth_url
+        self.options = [
+            ('auth_url', auth_url, 'string',
+             'URL to begin the authentication sequence from'),
+            ('data_format',self.data_format,'string',
+             'Format for the POST parameters. Potentially unlimited number of configurable parameters.'),
             ('check_url', self.check_url, 'url',
              'URL used to verify if the session is still active by looking for'
              ' the check_string.'),
             ('check_string', self.check_string, 'string',
              'String for searching on check_url page to determine if the'
-             'current session is active.'),
-            ('data_format', self.data_format, 'string',
-             'The format for the POST-data or query string. The following are'
-             ' valid formatting values:\n'
-             '    - %u for the username parameter name value\n'
-             '    - %U for the username value\n'
-             '    - %p for the password parameter name value\n'
-             '    - %P for the password value\n'
-	     '    - %X for any additional values\n'),
-            ('method', self.method, 'string', 'The HTTP method to use'),
-        ]
+             'current session is active.')
+                ]
+        
+        print "In options, df: ",self.data_format
+        for extra in self.extras:
+            #Add another option
+            option = (extra[0], extra[1],'string',extra[2]+" field")
+            self.options.append(option)
+        
         ol = OptionList()
-	# Add server supplied form values to the options list
-	for e in self.extras:
-	    option = (e['name'],e['value'],'string',
-			'Extra parameter %s supplied by server' % e['name'])
-	    options.append(option)
-        for o in options:
+        for o in self.options:
             ol.add(opt_factory(o[0], o[1], o[3], o[2], help=o[3]))
         return ol
 
@@ -204,38 +203,26 @@ class enhanced(AuthPlugin):
         :param options_list: A dict with the options for the plugin.
         :return: No value is returned.
         """
-        self.username = options_list['username'].get_value()
-        self.password = options_list['password'].get_value()
-        self.username_field = options_list['username_field'].get_value()
-        self.password_field = options_list['password_field'].get_value()
+        global auth_url
+        curr_auth_url = options_list['auth_url'].get_value()
+        if curr_auth_url != auth_url:
+            auth_url = curr_auth_url
+            #Do not run if empty auth_url
+            if auth_url != "":
+                self._run_auth_sequence()
+            
         self.data_format = options_list['data_format'].get_value()
+        self.check_url = options_list["check_url"].get_value()
         self.check_string = options_list['check_string'].get_value()
-        self.method = options_list['method'].get_value()
-        self.auth_url = options_list['auth_url'].get_value()
-	self.get_extras()
-        self.check_url = options_list['check_url'].get_value()
-
-        for o in options_list:
-            if not o.get_value():
-                msg = "All parameters are required and can't be empty."
-                raise BaseFrameworkException(msg)
-
     def get_long_desc(self):
         """
         :return: A DETAILED description of the plugin functions and features.
         """
         return """
-        This authentication plugin can login to web application with more detailed
-        and complex authentication schemas where the generic plugin does not work.
+        This authentication plugin can login to applications where more than just username and password
+        are required (e.g. CSRF nonce, other hidden fields). To see an example, try configuring a scan
+        for the Google Mail authentication page.
 
-        Nine configurable parameters exist:
-            - username
-            - password
-            - username_field
-            - password_field
-            - data_format
-            - auth_url
-            - method
-            - check_url
-            - check_string
+        A potentially unlimited number of configurable parameters exist.
+        Fill the parameter "auth_url". Click <b>Save</b> to run the form scraper and update the options.
         """
