@@ -21,7 +21,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 import gtk
 import gobject
 import os
-
+import inspect
 from w3af.core.ui.gui import GUI_DATA_PATH
 from w3af.core.ui.gui import confpanel, entries, helpers
 from w3af.core.ui.gui.pluginEditor import pluginEditor
@@ -29,7 +29,7 @@ from w3af.core.ui.gui.misc.text_wrap_label import WrapLabel
 
 from w3af.core.controllers.misc.homeDir import get_home_dir
 
-            
+auth_options = []            
 class OptionsPanel(gtk.VBox):
     """Panel with options for configuration.
 
@@ -338,7 +338,15 @@ class PluginTree(gtk.TreeView):
         isallok = all([all(
             children.values()) for children in self.config_status.values()])
         self.mainwin.scanok.change(self, isallok)
-
+        
+        if path == (1,1):
+            sPath = "1:1"
+            p = self._get_plugin_inst(path)
+            plugin_name = self.treestore[sPath][3]
+            plugin_type = self.treestore[sPath[:1]][3]
+            p._run_auth_sequence()
+            if like_initial:
+                self._finishedEditingPlugin(path, plugin_type, plugin_name)
     def _get_plugin_inst(self, path):
         """Caches the plugin instance.
 
@@ -401,7 +409,6 @@ class PluginTree(gtk.TreeView):
         I get here when the user right clicks on a plugin name, then he clicks on "Reload plugin"
         This method calls the plugin editor with the corresponding parameters.
         """
-        print "_handleReload -> PName: ",plugin_name," PType: ",plugin_type, " Path: ",path
         self._finishedEditingPlugin(path, plugin_type, plugin_name)
 
     def _handleEditPluginEvent(self, widget, plugin_name, plugin_type, path):
@@ -495,14 +502,15 @@ class PluginTree(gtk.TreeView):
         treerow[1] = newvalue
         treerow[2] = False
         #Enhanced authentication plugin. Could be more elegant...
-        
+        """
         if path == "1:1":
             tPath = (1,1)
+            
             p = self._get_plugin_inst(path)
             plugin_name = self.treestore[path][3]
             plugin_type = self.treestore[path[:1]][3]
             self._finishedEditingPlugin(tPath, plugin_type, plugin_name)
-            
+        """
             
         # path can be "?" if it's a father or "?:?" if it's a child
         if ":" not in path:

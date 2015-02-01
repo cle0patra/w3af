@@ -22,7 +22,7 @@ from lib.core.settings import CRAWL_EXCLUDE_EXTENSIONS
 from lib.core.threads import getCurrentThreadData
 from lib.core.threads import runThreads
 from lib.request.connect import Connect as Request
-from thirdparty.beautifulsoup.beautifulsoup import BeautifulSoup
+from beautifulsoup.beautifulsoup import BeautifulSoup
 from thirdparty.oset.pyoset import oset
 
 def crawl(target):

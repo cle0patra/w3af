@@ -20,9 +20,10 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 """
 from splinter import Browser
-from bs4 import BeautifulSoup
 import urllib2
-
+import inspect
+#from thirdparty.bs4 import BeautifulSoup
+from bs4 import BeautifulSoup
 import w3af.core.controllers.output_manager as om
 
 from w3af.core.controllers.plugins.auth_plugin import AuthPlugin
@@ -31,40 +32,45 @@ from w3af.core.controllers.exceptions import BaseFrameworkException
 from w3af.core.data.options.opt_factory import opt_factory
 from w3af.core.data.options.option_list import OptionList
 
-
+import lxml
 auth_url = 'https://example.com/login'
 class enhanced(AuthPlugin):
     """Enhanced authentication plugin."""
     
-    def __init__(self):
+    def __init__(self,options=[]):
         AuthPlugin.__init__(self)
         self.extras = [] # In (name,value,type) format. Actually holds all parameters (username, password included)
         self.data_format = ""
-        self.check_url = 'http://host.tld/'
+        self.check_url = 'http://example.com/home'
         self.check_string = ''
         
         self.method = "POST"
         self.options = []
     def _run_auth_sequence(self):
         """
-        Grab form values from auth URL
+        Scrape form values from authentication URL
         """
-        print "run auth sequence."
-        """ br = Browser('firefox')
-        br.visit(auth_url)"""
         global auth_url
         try:
             request = urllib2.Request(auth_url)
             response = None
             try:
                 response = urllib2.urlopen(request)
-                html = response.read()
-                html_proc = BeautifulSoup(html)
-                
+                html_doc = response.read()
+                html_proc = BeautifulSoup(html_doc)
+                """
+                tree = lxml.html.parse(html_doc) # you can pass parse() a file-like object or an URL
+                root = tree.getroot()
+                for form in root.xpath('//form'):
+                    for field in form.getchildren():
+                        if 'name' in field.keys():
+                            print "Found a name"
+                            #print field.get('name')
+                 """
+                            
                 ck_value = lambda d, key: d.get(key) if d.get(key) != None else ''
                 self.extras = [(element['name'], ck_value(element,"value"), ck_value(element,"type")) for element in html_proc.find_all('input')]
                 self._update_data_format()
-                print self.extras
             except urllib2.HTTPError as e:
                 print e
                 om.out.debug("Error fetching login URL: %s" % e)
@@ -96,7 +102,6 @@ class enhanced(AuthPlugin):
         self.options[1] = new_format_option
         
         print "Data format: ",self.data_format," Updated tuple: ",new_format_option," Options tuple: ",self.options[1]
-            
     def login(self):
         """
         Login to the application.
@@ -170,6 +175,7 @@ class enhanced(AuthPlugin):
         :return: A list of option objects for this plugin.
         """
         global auth_url
+        global options
         self.options = [
             ('auth_url', auth_url, 'string',
              'URL to begin the authentication sequence from'),
@@ -182,8 +188,6 @@ class enhanced(AuthPlugin):
              'String for searching on check_url page to determine if the'
              'current session is active.')
                 ]
-        
-        print "In options, df: ",self.data_format
         for extra in self.extras:
             #Add another option
             option = (extra[0], extra[1],'string',extra[2]+" field")
@@ -192,6 +196,8 @@ class enhanced(AuthPlugin):
         ol = OptionList()
         for o in self.options:
             ol.add(opt_factory(o[0], o[1], o[3], o[2], help=o[3]))
+        print self.options
+        options = self.options
         return ol
 
     def set_options(self, options_list):

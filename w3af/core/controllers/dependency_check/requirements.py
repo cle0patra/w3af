@@ -26,7 +26,8 @@ GUI = 2
 
 CORE_PIP_PACKAGES = [PIPDependency('clamd', 'clamd', '1.0.1'),
                      PIPDependency('github', 'PyGithub', '1.21.0'),
-                     PIPDependency('git.util', 'GitPython', '0.3.2rc1'),
+                     #PIPDependency('git.util', 'GitPython', '0.3.2rc1'),
+                     PIPDependency('git.util', 'GitPython', '0.3.2.RC1'),
                      PIPDependency('pybloomfilter', 'pybloomfiltermmap', '0.3.11'),
                      PIPDependency('esmre', 'esmre', '0.3.1'),
                      PIPDependency('phply', 'phply', '0.9.1'),
@@ -36,12 +37,14 @@ CORE_PIP_PACKAGES = [PIPDependency('clamd', 'clamd', '1.0.1'),
                      PIPDependency('concurrent.futures', 'futures', '2.1.5'),
                      PIPDependency('OpenSSL', 'pyOpenSSL', '0.13.1'),
                      PIPDependency('lxml', 'lxml', '2.3.2'),
-                     PIPDependency('scapy.config', 'scapy-real', '2.2.0.dev0'),
+                     #PIPDependency('scapy.config', 'scapy-real', '2.2.0.dev0'),
+                     PIPDependency('scapy.config', 'scapy-real', '2.2.0-dev'),
                      PIPDependency('guess_language', 'guess-language', '0.2'),
                      PIPDependency('cluster', 'cluster', '1.1.1b3'),
                      PIPDependency('msgpack', 'msgpack-python', '0.2.4'),
                      PIPDependency('ntlm', 'python-ntlm', '1.0.1'),
                      PIPDependency('Halberd', 'halberd', '0.2.4'),
+                     PIPDependency('BeautifulSoup', 'bs4', '3.2.1'),
                      PIPDependency('darts.lib.utils', 'darts.util.lru', '0.5')]
 
 GUI_PIP_EXTRAS = [PIPDependency('xdot', 'xdot', '0.6'),]
