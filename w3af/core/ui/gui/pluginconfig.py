@@ -339,13 +339,17 @@ class PluginTree(gtk.TreeView):
             children.values()) for children in self.config_status.values()])
         self.mainwin.scanok.change(self, isallok)
         
-        if path == (1,1):
-            sPath = "1:1"
-            p = self._get_plugin_inst(path)
+        # This is a handler for the enhanced authentication plugin
+        # Do not act unless the configuration has changed
+        if like_initial:
+            #get path as string for lookup
+            sPath = str(path[0])+":"+str(path[1])
             plugin_name = self.treestore[sPath][3]
             plugin_type = self.treestore[sPath[:1]][3]
-            p._run_auth_sequence()
-            if like_initial:
+            # If the context is correct...
+            if plugin_name == "enhanced" and plugin_type == "auth":
+                p = self._get_plugin_inst(path)
+                # spike a refresh
                 self._finishedEditingPlugin(path, plugin_type, plugin_name)
     def _get_plugin_inst(self, path):
         """Caches the plugin instance.
@@ -501,17 +505,6 @@ class PluginTree(gtk.TreeView):
         newvalue = not treerow[1]
         treerow[1] = newvalue
         treerow[2] = False
-        #Enhanced authentication plugin. Could be more elegant...
-        """
-        if path == "1:1":
-            tPath = (1,1)
-            
-            p = self._get_plugin_inst(path)
-            plugin_name = self.treestore[path][3]
-            plugin_type = self.treestore[path[:1]][3]
-            self._finishedEditingPlugin(tPath, plugin_type, plugin_name)
-        """
-            
         # path can be "?" if it's a father or "?:?" if it's a child
         if ":" not in path:
             # father, lets check if it's the crawl/evasion plugin type

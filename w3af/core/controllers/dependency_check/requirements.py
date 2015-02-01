@@ -44,7 +44,7 @@ CORE_PIP_PACKAGES = [PIPDependency('clamd', 'clamd', '1.0.1'),
                      PIPDependency('msgpack', 'msgpack-python', '0.2.4'),
                      PIPDependency('ntlm', 'python-ntlm', '1.0.1'),
                      PIPDependency('Halberd', 'halberd', '0.2.4'),
-                     PIPDependency('BeautifulSoup', 'bs4', '3.2.1'),
+                     PIPDependency('BeautifulSoup', 'BeautifulSoup', '3.2.1'),
                      PIPDependency('darts.lib.utils', 'darts.util.lru', '0.5')]
 
 GUI_PIP_EXTRAS = [PIPDependency('xdot', 'xdot', '0.6'),]

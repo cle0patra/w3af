@@ -22,8 +22,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 from splinter import Browser
 import urllib2
 import inspect
-#from thirdparty.bs4 import BeautifulSoup
-from bs4 import BeautifulSoup
 import w3af.core.controllers.output_manager as om
 
 from w3af.core.controllers.plugins.auth_plugin import AuthPlugin
@@ -32,8 +30,8 @@ from w3af.core.controllers.exceptions import BaseFrameworkException
 from w3af.core.data.options.opt_factory import opt_factory
 from w3af.core.data.options.option_list import OptionList
 
-import lxml
-auth_url = 'https://example.com/login'
+from lxml.html import parse, tostring
+from urllib2 import urlopen
 class enhanced(AuthPlugin):
     """Enhanced authentication plugin."""
     
@@ -46,30 +44,35 @@ class enhanced(AuthPlugin):
         
         self.method = "POST"
         self.options = []
+        self.auth_url = 'https://example.com/login'
     def _run_auth_sequence(self):
         """
         Scrape form values from authentication URL
         """
-        global auth_url
         try:
-            request = urllib2.Request(auth_url)
+            request = urllib2.Request(self.auth_url)
             response = None
             try:
-                response = urllib2.urlopen(request)
-                html_doc = response.read()
-                html_proc = BeautifulSoup(html_doc)
-                """
-                tree = lxml.html.parse(html_doc) # you can pass parse() a file-like object or an URL
-                root = tree.getroot()
-                for form in root.xpath('//form'):
-                    for field in form.getchildren():
-                        if 'name' in field.keys():
-                            print "Found a name"
-                            #print field.get('name')
-                 """
-                            
-                ck_value = lambda d, key: d.get(key) if d.get(key) != None else ''
-                self.extras = [(element['name'], ck_value(element,"value"), ck_value(element,"type")) for element in html_proc.find_all('input')]
+                
+                #Zero out any previous extras configurations
+                self.extras = []
+                #Checker for Beautiful Soup, deprecated
+                #ck_value = lambda d, i: d.get(key) if d.get(key) != None else ''
+                
+                # Sanity check for lxml
+                ck_value = lambda d: d if d != None else ''
+                doc = parse(urlopen(self.auth_url)).getroot()
+                for form in doc.forms:
+                    om.out.debug("Found form")
+                    
+                    # Find all inputs, including those with no value field
+                    for input_key in form.inputs.keys():
+                        self.extras.append( (input_key, ck_value(form.fields[input_key]) ) )
+                    """
+                    For now break after parsing first form
+                    TODO: Add option to select form
+                    """
+                    break
                 self._update_data_format()
             except urllib2.HTTPError as e:
                 print e
@@ -100,8 +103,6 @@ class enhanced(AuthPlugin):
         new_format_option[1] = self.data_format
         new_format_option = tuple(new_format_option)
         self.options[1] = new_format_option
-        
-        print "Data format: ",self.data_format," Updated tuple: ",new_format_option," Options tuple: ",self.options[1]
     def login(self):
         """
         Login to the application.
@@ -115,7 +116,7 @@ class enhanced(AuthPlugin):
 
         try:
             functor = getattr(self._uri_opener, self.method)
-            functor(auth_url, data)
+            functor(self.auth_url, data)
 
             if not self.is_logged():
                 raise Exception("Can't login into web application as %s/%s"
@@ -174,13 +175,9 @@ class enhanced(AuthPlugin):
         """
         :return: A list of option objects for this plugin.
         """
-        global auth_url
-        global options
         self.options = [
-            ('auth_url', auth_url, 'string',
+            ('auth_url', self.auth_url, 'string',
              'URL to begin the authentication sequence from'),
-            ('data_format',self.data_format,'string',
-             'Format for the POST parameters. Potentially unlimited number of configurable parameters.'),
             ('check_url', self.check_url, 'url',
              'URL used to verify if the session is still active by looking for'
              ' the check_string.'),
@@ -190,13 +187,12 @@ class enhanced(AuthPlugin):
                 ]
         for extra in self.extras:
             #Add another option
-            option = (extra[0], extra[1],'string',extra[2]+" field")
+            option = (extra[0], extra[1],'string',"Form field")
             self.options.append(option)
         
         ol = OptionList()
         for o in self.options:
             ol.add(opt_factory(o[0], o[1], o[3], o[2], help=o[3]))
-        print self.options
         options = self.options
         return ol
 
@@ -209,12 +205,12 @@ class enhanced(AuthPlugin):
         :param options_list: A dict with the options for the plugin.
         :return: No value is returned.
         """
-        global auth_url
+        
         curr_auth_url = options_list['auth_url'].get_value()
-        if curr_auth_url != auth_url:
-            auth_url = curr_auth_url
+        if curr_auth_url != self.auth_url:
+            self.auth_url = curr_auth_url
             #Do not run if empty auth_url
-            if auth_url != "":
+            if self.auth_url != "":
                 self._run_auth_sequence()
             
         self.data_format = options_list['data_format'].get_value()
@@ -227,8 +223,9 @@ class enhanced(AuthPlugin):
         return """
         This authentication plugin can login to applications where more than just username and password
         are required (e.g. CSRF nonce, other hidden fields). To see an example, try configuring a scan
-        for the Google Mail authentication page.
+        for a website with hidden form fields.
 
         A potentially unlimited number of configurable parameters exist.
-        Fill the parameter "auth_url". Click <b>Save</b> to run the form scraper and update the options.
+        Fill the parameter "auth_url". Click Save to run the form scraper and update the options.
+        -> Data is formatted like so: %param_a=%PARAM_A&%param_b=%PARAM_B ... etc
         """
